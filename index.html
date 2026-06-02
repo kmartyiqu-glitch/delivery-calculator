@@ -1076,10 +1076,13 @@ function findZone(lat, lng) {
 }
 
 // ============================================================
-// NOMINATIM API: геокодирование и автоподсказки
+// ЯНДЕКС.ГЕОКОДЕР API: геокодирование и автоподсказки
 // ============================================================
-let lastRequestTime = 0;
-const MIN_INTERVAL = 1100; // Задержка между запросами к API (1+ сек)
+const YANDEX_API_KEY = '78878ee3-2be9-4cfd-b99d-8b9e78b387f1';
+const YANDEX_GEOCODER_URL = 'https://geocode-maps.yandex.ru/1.x/';
+const REQUEST_TIMEOUT = 5000; // Таймаут запроса 5 секунд
+const DEBOUNCE_DELAY = 500; // Задержка перед запросом автоподсказок
+
 let debounceTimer = null;
 let selectedLat = null;
 let selectedLng = null;
@@ -1087,6 +1090,59 @@ let selectedDisplayName = '';
 
 const addressInput = document.getElementById('addressInput');
 const autocompleteList = document.getElementById('autocompleteList');
+
+// Функция для создания URL запроса к Яндекс.Геокодеру
+function buildYandexUrl(query, results = 5) {
+  const params = new URLSearchParams({
+    apikey: YANDEX_API_KEY,
+    geocode: query,
+    format: 'json',
+    results: results,
+    lang: 'ru_RU'
+  });
+  return `${YANDEX_GEOCODER_URL}?${params.toString()}`;
+}
+
+// Функция fetch с таймаутом
+async function fetchWithTimeout(url, timeout = REQUEST_TIMEOUT) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('TIMEOUT');
+    }
+    throw error;
+  }
+}
+
+// Парсинг ответа Яндекс.Геокодера — извлечение списка адресов
+function parseYandexResponse(data) {
+  const results = [];
+  try {
+    const featureMembers = data.response.GeoObjectCollection.featureMember;
+    if (!featureMembers || featureMembers.length === 0) {
+      return results;
+    }
+    featureMembers.forEach(item => {
+      const geoObject = item.GeoObject;
+      const text = geoObject.metaDataProperty.GeocoderMetaData.text;
+      // Координаты в формате "lon lat" — нужно разделить и поменять местами
+      const pos = geoObject.Point.pos.split(' ');
+      const lon = parseFloat(pos[0]);
+      const lat = parseFloat(pos[1]);
+      results.push({ text, lat, lon });
+    });
+  } catch (e) {
+    console.error('Ошибка парсинга ответа Яндекса:', e);
+  }
+  return results;
+}
 
 // Автоподсказки при вводе адреса
 addressInput.addEventListener('input', function() {
@@ -1098,7 +1154,7 @@ addressInput.addEventListener('input', function() {
     return;
   }
   clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => fetchSuggestions(query), 400);
+  debounceTimer = setTimeout(() => fetchSuggestions(query), DEBOUNCE_DELAY);
 });
 
 // Скрытие подсказок при клике вне
@@ -1109,25 +1165,24 @@ document.addEventListener('click', function(e) {
 });
 
 async function fetchSuggestions(query) {
-  // Соблюдаем задержку между запросами к Nominatim API
-  const now = Date.now();
-  const timeSince = now - lastRequestTime;
-  if (timeSince < MIN_INTERVAL) {
-    await new Promise(r => setTimeout(r, MIN_INTERVAL - timeSince));
-  }
-
-  const fullQuery = query + ', Краснодар';
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(fullQuery)}&format=json&limit=5&accept-language=ru&countrycodes=ru`;
+  // Добавляем "Краснодар" для более точного поиска
+  const fullQuery = 'Краснодар, ' + query;
+  const url = buildYandexUrl(fullQuery, 5);
 
   try {
-    lastRequestTime = Date.now();
-    const resp = await fetch(url, {
-      headers: { 'User-Agent': 'KrasnodarDeliveryCalc/1.0' }
-    });
+    const resp = await fetchWithTimeout(url);
+    
+    if (!resp.ok) {
+      throw new Error('HTTP_ERROR');
+    }
+    
     const data = await resp.json();
-    showSuggestions(data);
+    const results = parseYandexResponse(data);
+    showSuggestions(results);
   } catch(e) {
-    console.error('Ошибка запроса к Nominatim:', e);
+    console.error('Ошибка запроса к Яндекс.Геокодеру:', e);
+    // Не показываем ошибку пользователю при автоподсказках — просто скрываем список
+    autocompleteList.style.display = 'none';
   }
 }
 
@@ -1140,12 +1195,13 @@ function showSuggestions(results) {
   results.forEach(r => {
     const item = document.createElement('div');
     item.className = 'autocomplete-item';
-    item.textContent = r.display_name;
+    item.textContent = r.text;
     item.addEventListener('click', () => {
-      addressInput.value = r.display_name;
-      selectedLat = parseFloat(r.lat);
-      selectedLng = parseFloat(r.lon);
-      selectedDisplayName = r.display_name;
+      addressInput.value = r.text;
+      // Яндекс возвращает lon, lat — для ray casting используем lat, lon
+      selectedLat = r.lat;
+      selectedLng = r.lon;
+      selectedDisplayName = r.text;
       autocompleteList.style.display = 'none';
     });
     autocompleteList.appendChild(item);
@@ -1199,30 +1255,42 @@ async function calculate() {
   if (lat === null || lng === null) {
     spinner.classList.add('show');
     try {
-      const now = Date.now();
-      const timeSince = now - lastRequestTime;
-      if (timeSince < MIN_INTERVAL) {
-        await new Promise(r => setTimeout(r, MIN_INTERVAL - timeSince));
+      // Добавляем "Краснодар" если не указан в запросе
+      const fullQuery = query.toLowerCase().includes('краснод') 
+        ? query 
+        : 'Краснодар, ' + query;
+      const url = buildYandexUrl(fullQuery, 1);
+      
+      const resp = await fetchWithTimeout(url);
+      
+      if (!resp.ok) {
+        throw new Error('HTTP_ERROR');
       }
-      const fullQuery = query + (query.toLowerCase().includes('краснод') ? '' : ', Краснодар');
-      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(fullQuery)}&format=json&limit=1&accept-language=ru&countrycodes=ru`;
-      lastRequestTime = Date.now();
-      const resp = await fetch(url, {
-        headers: { 'User-Agent': 'KrasnodarDeliveryCalc/1.0' }
-      });
+      
       const data = await resp.json();
+      const results = parseYandexResponse(data);
       spinner.classList.remove('show');
 
-      if (!data || data.length === 0) {
+      if (!results || results.length === 0) {
         showError('Адрес не найден. Попробуйте уточнить.');
         return;
       }
-      lat = parseFloat(data[0].lat);
-      lng = parseFloat(data[0].lon);
-      selectedDisplayName = data[0].display_name;
+      
+      // Яндекс возвращает lon, lat — для ray casting используем lat, lon
+      lat = results[0].lat;
+      lng = results[0].lon;
+      selectedDisplayName = results[0].text;
     } catch(e) {
       spinner.classList.remove('show');
-      showError('Ошибка при обращении к геокодеру. Проверьте интернет.');
+      // Разные сообщения в зависимости от типа ошибки
+      if (e.message === 'TIMEOUT') {
+        showError('Сервис временно недоступен. Попробуйте позже.');
+      } else if (e.name === 'TypeError' || e.message === 'Failed to fetch') {
+        showError('Проверьте интернет-соединение.');
+      } else {
+        showError('Сервис временно недоступен. Попробуйте позже.');
+      }
+      console.error('Ошибка геокодирования:', e);
       return;
     }
   }
