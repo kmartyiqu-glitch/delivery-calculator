@@ -1,0 +1,1379 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🚚 Калькулятор доставки по Краснодару</title>
+<style>
+/* === ОСНОВНЫЕ СТИЛИ === */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #f8f9fa;
+  color: #2c3e50;
+  min-height: 100vh;
+}
+.container {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 16px;
+}
+h1 {
+  text-align: center;
+  font-size: 1.5rem;
+  color: #2c3e50;
+  margin-bottom: 24px;
+  padding-top: 12px;
+}
+
+/* === ФОРМА === */
+.form-group {
+  margin-bottom: 16px;
+  position: relative;
+}
+label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+  color: #2c3e50;
+}
+input[type="text"],
+input[type="number"],
+select {
+  width: 100%;
+  padding: 12px 14px;
+  border: 2px solid #ddd;
+  border-radius: 10px;
+  font-size: 1rem;
+  transition: border-color 0.3s;
+  background: #fff;
+  color: #2c3e50;
+}
+input:focus, select:focus {
+  outline: none;
+  border-color: #ff4747;
+}
+
+/* === АВТОПОДСКАЗКИ === */
+.autocomplete-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 2px solid #ddd;
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 100;
+  display: none;
+}
+.autocomplete-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background 0.15s;
+}
+.autocomplete-item:hover {
+  background: #fff0f0;
+}
+.autocomplete-item:last-child { border-bottom: none; }
+
+/* === КНОПКИ === */
+.btn {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  margin-bottom: 10px;
+}
+.btn:active { transform: scale(0.97); }
+.btn-primary {
+  background: #ff4747;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(255, 71, 71, 0.35);
+}
+.btn-primary:hover { box-shadow: 0 6px 20px rgba(255, 71, 71, 0.5); }
+.btn-secondary {
+  background: #2c3e50;
+  color: #fff;
+}
+.btn-outline {
+  background: transparent;
+  color: #2c3e50;
+  border: 2px solid #ddd;
+}
+.btn-outline:hover { border-color: #2c3e50; }
+.btn-sm {
+  padding: 10px 16px;
+  font-size: 0.85rem;
+  width: auto;
+}
+.btn-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+.btn-row .btn { flex: 1; }
+
+/* === КАРТОЧКА РЕЗУЛЬТАТА === */
+.result-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 20px;
+  margin-top: 20px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.1);
+  animation: slideUp 0.4s ease;
+  display: none;
+}
+.result-card.show { display: block; }
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.result-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  font-size: 0.95rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+.result-row:last-child { border-bottom: none; }
+.result-row.total {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #ff4747;
+  border-top: 2px solid #ff4747;
+  margin-top: 6px;
+  padding-top: 12px;
+}
+.result-label { color: #666; }
+
+/* === МОДАЛЬНОЕ ОКНО === */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1000;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 20px;
+  overflow-y: auto;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: #fff;
+  border-radius: 14px;
+  padding: 20px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  margin-top: 30px;
+}
+.modal h2 {
+  font-size: 1.2rem;
+  margin-bottom: 14px;
+  text-align: center;
+}
+.modal-search {
+  width: 100%;
+  padding: 10px 14px;
+  border: 2px solid #ddd;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  margin-bottom: 14px;
+}
+.modal-search:focus { outline: none; border-color: #ff4747; }
+.modal-table-wrap {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 14px;
+  border: 1px solid #eee;
+  border-radius: 10px;
+}
+.zone-group-header {
+  padding: 8px 12px;
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+/* Цветовое кодирование групп */
+.group-central { background: #ffe5e5; color: #c0392b; }
+.group-west { background: #e5ecff; color: #2980b9; }
+.group-prikuban { background: #e5ffe5; color: #27ae60; }
+.group-karasun { background: #fff3e0; color: #e67e22; }
+.group-stanitsy { background: #f3e5ff; color: #8e44ad; }
+.group-hutora { background: #f0e0d0; color: #795548; }
+.group-poselki { background: #eceff1; color: #607d8b; }
+.group-other { background: #e0f7fa; color: #00838f; }
+
+.zone-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-bottom: 1px solid #f5f5f5;
+}
+.zone-row:last-child { border-bottom: none; }
+.zone-name {
+  flex: 1;
+  font-size: 0.85rem;
+  padding-right: 10px;
+}
+.zone-price-input {
+  width: 90px;
+  padding: 6px 8px;
+  border: 1.5px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  text-align: right;
+}
+.zone-price-input:focus { outline: none; border-color: #ff4747; }
+.modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.modal-actions .btn { flex: 1; min-width: 120px; }
+
+/* === ЗАГРУЗКА === */
+.spinner {
+  display: none;
+  text-align: center;
+  padding: 20px;
+  color: #999;
+}
+.spinner.show { display: block; }
+.error-msg {
+  background: #fff0f0;
+  color: #c0392b;
+  padding: 12px;
+  border-radius: 10px;
+  text-align: center;
+  margin-top: 12px;
+  display: none;
+  font-size: 0.9rem;
+}
+.error-msg.show { display: block; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Заголовок -->
+  <h1>🚚 Калькулятор доставки по Краснодару</h1>
+
+  <!-- Адрес с автоподсказками -->
+  <div class="form-group">
+    <label for="addressInput">📍 Адрес (улица и дом)</label>
+    <input type="text" id="addressInput" placeholder="Например: Красная 1" autocomplete="off">
+    <div class="autocomplete-list" id="autocompleteList"></div>
+  </div>
+
+  <!-- Тип подъёма -->
+  <div class="form-group">
+    <label for="liftType">🛗 Тип подъёма</label>
+    <select id="liftType">
+      <option value="lift">Лифт</option>
+      <option value="nolift">Без лифта</option>
+      <option value="owner">С хозяином</option>
+    </select>
+  </div>
+
+  <!-- Этаж -->
+  <div class="form-group">
+    <label for="floorInput">🏢 Этаж</label>
+    <input type="number" id="floorInput" min="1" max="50" value="1">
+  </div>
+
+  <!-- Кнопки -->
+  <button class="btn btn-primary" id="calcBtn" onclick="calculate()">Рассчитать</button>
+
+  <!-- Загрузка -->
+  <div class="spinner" id="spinner">⏳ Определяем адрес...</div>
+
+  <!-- Ошибка -->
+  <div class="error-msg" id="errorMsg"></div>
+
+  <!-- Карточка результата -->
+  <div class="result-card" id="resultCard">
+    <div class="result-row">
+      <span class="result-label">📍 Адрес:</span>
+      <span id="resAddress" style="text-align:right;max-width:60%;font-weight:600;"></span>
+    </div>
+    <div class="result-row">
+      <span class="result-label">📍 Район:</span>
+      <span id="resZone" style="font-weight:600;"></span>
+    </div>
+    <div class="result-row">
+      <span class="result-label">🚚 Доставка:</span>
+      <span id="resDelivery" style="font-weight:600;"></span>
+    </div>
+    <div class="result-row">
+      <span class="result-label">🛗 Подъём:</span>
+      <span id="resLift" style="font-weight:600;"></span>
+    </div>
+    <div class="result-row total">
+      <span>💰 ИТОГО:</span>
+      <span id="resTotal"></span>
+    </div>
+  </div>
+
+  <!-- Кнопки снизу -->
+  <div class="btn-row" style="margin-top:16px;">
+    <button class="btn btn-outline" onclick="resetAll()">Сброс</button>
+    <button class="btn btn-secondary" onclick="openModal()">⚙️ Управление ценами</button>
+  </div>
+</div>
+
+<!-- Модальное окно управления ценами -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h2>⚙️ Управление ценами доставки</h2>
+    <input type="text" class="modal-search" id="zoneSearch" placeholder="🔍 Поиск по названию зоны..." oninput="filterZones()">
+    <div class="modal-table-wrap" id="zoneTableWrap"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary btn-sm" onclick="savePrices()">💾 Сохранить все</button>
+      <button class="btn btn-outline btn-sm" onclick="resetPrices()">🔄 Сбросить на 1000₽</button>
+      <button class="btn btn-secondary btn-sm" onclick="closeModal()">✖ Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// ДАННЫЕ ЗОН: id, название, группа, полигон координат, цена
+// Полигоны покрывают территорию Краснодара и пригородов
+// Координаты: [lat, lng]
+// ============================================================
+
+const GROUPS = [
+  { key: 'central', name: 'ЦЕНТРАЛЬНЫЙ ОКРУГ', css: 'group-central' },
+  { key: 'west', name: 'ЗАПАДНЫЙ ОКРУГ', css: 'group-west' },
+  { key: 'prikuban', name: 'ПРИКУБАНСКИЙ ОКРУГ', css: 'group-prikuban' },
+  { key: 'karasun', name: 'КАРАСУНСКИЙ ОКРУГ', css: 'group-karasun' },
+  { key: 'stanitsy', name: 'СТАНИЦЫ', css: 'group-stanitsy' },
+  { key: 'hutora', name: 'ХУТОРА', css: 'group-hutora' },
+  { key: 'poselki', name: 'ПОСЁЛКИ', css: 'group-poselki' },
+  { key: 'other', name: 'ПРОЧИЕ', css: 'group-other' }
+];
+
+// Дефолтная цена для всех зон
+const DEFAULT_PRICE = 1000;
+
+// Массив всех зон с полигонами
+const ZONES_DATA = [
+  // ====== ЦЕНТРАЛЬНЫЙ ОКРУГ ======
+  {
+    id: 'cmr', name: 'ЦМР', group: 'central',
+    coords: [
+      [45.0350, 38.9600],[45.0350, 38.9900],[45.0350, 39.0000],[45.0350, 39.0200],
+      [45.0280, 39.0200],[45.0210, 39.0200],[45.0150, 39.0200],
+      [45.0150, 39.0000],[45.0150, 38.9900],[45.0150, 38.9700],[45.0150, 38.9600],
+      [45.0210, 38.9600],[45.0280, 38.9600]
+    ]
+  },
+  {
+    id: 'chmr', name: 'ЧМР', group: 'central',
+    coords: [
+      [45.0150, 38.9700],[45.0150, 38.9900],[45.0150, 39.0200],
+      [45.0150, 39.0400],[45.0050, 39.0400],[45.0000, 39.0400],
+      [44.9950, 39.0300],[44.9960, 39.0100],[45.0000, 38.9800],
+      [45.0050, 38.9700],[45.0100, 38.9600]
+    ]
+  },
+  {
+    id: 'kubanskaya_nab', name: 'Кубанская Набережная', group: 'central',
+    coords: [
+      [45.0050, 38.9500],[45.0050, 38.9700],[45.0000, 38.9800],
+      [44.9960, 39.0100],[44.9950, 39.0300],[44.9900, 39.0300],
+      [44.9850, 39.0100],[44.9870, 38.9900],[44.9900, 38.9700],
+      [44.9950, 38.9500]
+    ]
+  },
+  {
+    id: 'stavropolskaya_niz', name: 'Ставропольская-низ', group: 'central',
+    coords: [
+      [45.0150, 39.0200],[45.0150, 39.0400],[45.0150, 39.0550],
+      [45.0050, 39.0550],[45.0050, 39.0400],[45.0000, 39.0400],
+      [45.0150, 39.0200]
+    ]
+  },
+  {
+    id: 'krasnaya_verh', name: 'Красная-верх', group: 'central',
+    coords: [
+      [45.0350, 39.0000],[45.0350, 39.0200],[45.0350, 39.0400],
+      [45.0500, 39.0400],[45.0500, 39.0200],[45.0500, 39.0000],
+      [45.0420, 39.0000]
+    ]
+  },
+  {
+    id: 'severnaya_centr', name: 'Северная-центр', group: 'central',
+    coords: [
+      [45.0500, 38.9700],[45.0500, 39.0000],[45.0420, 39.0000],
+      [45.0350, 39.0000],[45.0350, 38.9600],[45.0350, 38.9500],
+      [45.0420, 38.9500],[45.0500, 38.9500]
+    ]
+  },
+
+  // ====== ЗАПАДНЫЙ ОКРУГ ======
+  {
+    id: 'fmr', name: 'ФМР', group: 'west',
+    coords: [
+      [45.0350, 38.9200],[45.0350, 38.9500],[45.0350, 38.9600],
+      [45.0150, 38.9600],[45.0100, 38.9600],[45.0050, 38.9500],
+      [45.0050, 38.9300],[45.0100, 38.9200],[45.0200, 38.9100],
+      [45.0280, 38.9100]
+    ]
+  },
+  {
+    id: 'ymr', name: 'ЮМР', group: 'west',
+    coords: [
+      [45.0500, 38.9200],[45.0500, 38.9500],[45.0350, 38.9500],
+      [45.0350, 38.9200],[45.0350, 38.9000],[45.0420, 38.8900],
+      [45.0500, 38.8900]
+    ]
+  },
+  {
+    id: 'krasnyh_partizan', name: 'Красных Партизан', group: 'west',
+    coords: [
+      [45.0500, 38.8900],[45.0500, 38.9200],[45.0350, 38.9000],
+      [45.0350, 38.9200],[45.0280, 38.9100],[45.0200, 38.9100],
+      [45.0100, 38.9200],[45.0050, 38.9100],[45.0050, 38.8900],
+      [45.0100, 38.8700],[45.0200, 38.8600],[45.0350, 38.8600],
+      [45.0420, 38.8700]
+    ]
+  },
+  {
+    id: 'nemeckaya_derevnya', name: 'Немецкая деревня', group: 'west',
+    coords: [
+      [45.0700, 38.8600],[45.0700, 38.8900],[45.0600, 38.8900],
+      [45.0500, 38.8900],[45.0420, 38.8700],[45.0350, 38.8600],
+      [45.0400, 38.8400],[45.0500, 38.8400],[45.0600, 38.8400]
+    ]
+  },
+  {
+    id: 'basket_holl', name: 'Баскет-Холл', group: 'west',
+    coords: [
+      [45.0700, 38.8900],[45.0700, 38.9200],[45.0600, 38.9200],
+      [45.0500, 38.9200],[45.0500, 38.8900],[45.0600, 38.8900]
+    ]
+  },
+  {
+    id: 'zapadnyj_obhod', name: 'Западный Обход', group: 'west',
+    coords: [
+      [45.0900, 38.8400],[45.0900, 38.8700],[45.0800, 38.8900],
+      [45.0700, 38.8900],[45.0700, 38.8600],[45.0600, 38.8400],
+      [45.0700, 38.8200],[45.0800, 38.8200]
+    ]
+  },
+  {
+    id: 'dzerzhinskogo_verh', name: 'Дзержинского-верх', group: 'west',
+    coords: [
+      [45.0700, 38.9200],[45.0700, 38.9500],[45.0600, 38.9500],
+      [45.0500, 38.9500],[45.0500, 38.9200],[45.0600, 38.9200]
+    ]
+  },
+  {
+    id: 'rostovskoe_shosse', name: 'Ростовское шоссе', group: 'west',
+    coords: [
+      [45.0700, 38.9500],[45.0700, 38.9800],[45.0600, 38.9800],
+      [45.0500, 38.9700],[45.0500, 38.9500],[45.0600, 38.9500]
+    ]
+  },
+
+  // ====== ПРИКУБАНСКИЙ ОКРУГ ======
+  {
+    id: 'kmr', name: 'КМР', group: 'prikuban',
+    coords: [
+      [45.0050, 39.0550],[45.0050, 39.0800],[44.9950, 39.0800],
+      [44.9900, 39.0700],[44.9900, 39.0500],[44.9900, 39.0300],
+      [44.9950, 39.0300],[45.0000, 39.0400],[45.0050, 39.0400]
+    ]
+  },
+  {
+    id: 'gmr', name: 'ГМР', group: 'prikuban',
+    coords: [
+      [45.0050, 39.0800],[45.0050, 39.1050],[44.9950, 39.1050],
+      [44.9850, 39.1050],[44.9850, 39.0900],[44.9900, 39.0700],
+      [44.9950, 39.0800]
+    ]
+  },
+  {
+    id: 'enka', name: 'Энка', group: 'prikuban',
+    coords: [
+      [45.0800, 38.9800],[45.0800, 39.0100],[45.0700, 39.0100],
+      [45.0600, 39.0100],[45.0600, 38.9800],[45.0700, 38.9800]
+    ]
+  },
+  {
+    id: 'krasnaya_ploshad', name: 'Красная Площадь', group: 'prikuban',
+    coords: [
+      [45.0800, 39.0100],[45.0800, 39.0400],[45.0700, 39.0400],
+      [45.0600, 39.0400],[45.0600, 39.0100],[45.0700, 39.0100]
+    ]
+  },
+  {
+    id: 'moskovskij', name: 'Московский', group: 'prikuban',
+    coords: [
+      [45.0600, 39.0400],[45.0600, 39.0700],[45.0500, 39.0700],
+      [45.0500, 39.0400]
+    ]
+  },
+  {
+    id: 'molodezhnyj', name: 'Молодёжный', group: 'prikuban',
+    coords: [
+      [45.0800, 39.0400],[45.0800, 39.0700],[45.0700, 39.0700],
+      [45.0600, 39.0700],[45.0600, 39.0400],[45.0700, 39.0400]
+    ]
+  },
+  {
+    id: 'solnechnyj', name: 'Солнечный', group: 'prikuban',
+    coords: [
+      [45.0800, 39.0700],[45.0800, 39.1000],[45.0700, 39.1000],
+      [45.0600, 39.1000],[45.0600, 39.0700],[45.0700, 39.0700]
+    ]
+  },
+  {
+    id: 'novoznamenskij', name: 'Новознаменский', group: 'prikuban',
+    coords: [
+      [45.1000, 38.8700],[45.1000, 39.0000],[45.0900, 39.0000],
+      [45.0900, 38.8700]
+    ]
+  },
+  {
+    id: 'znamenskij', name: 'Знаменский', group: 'prikuban',
+    coords: [
+      [45.1000, 39.0000],[45.1000, 39.0400],[45.0900, 39.0400],
+      [45.0800, 39.0400],[45.0800, 39.0100],[45.0800, 38.9800],
+      [45.0900, 38.9800],[45.0900, 39.0000]
+    ]
+  },
+  {
+    id: 'lenta', name: 'Лента', group: 'prikuban',
+    coords: [
+      [45.0600, 38.9800],[45.0600, 39.0100],
+      [45.0500, 39.0200],[45.0500, 39.0000],[45.0500, 38.9700],
+      [45.0600, 38.9800]
+    ]
+  },
+  {
+    id: 'ksk', name: 'КСК', group: 'prikuban',
+    coords: [
+      [45.0150, 39.0550],[45.0150, 39.0750],[45.0050, 39.0750],
+      [45.0050, 39.0550]
+    ]
+  },
+  {
+    id: 'tec', name: 'ТЭЦ', group: 'prikuban',
+    coords: [
+      [45.0250, 39.0850],[45.0250, 39.1150],[45.0100, 39.1150],
+      [45.0050, 39.1100],[45.0050, 39.0850],[45.0100, 39.0750],
+      [45.0150, 39.0750]
+    ]
+  },
+  {
+    id: 'vitaminkomb', name: 'Витаминкомбинат', group: 'prikuban',
+    coords: [
+      [45.0600, 39.1000],[45.0600, 39.1300],[45.0500, 39.1300],
+      [45.0400, 39.1300],[45.0400, 39.1000],[45.0500, 39.1000]
+    ]
+  },
+  {
+    id: '40let_pobedy', name: '40 лет Победы', group: 'prikuban',
+    coords: [
+      [45.0500, 39.0700],[45.0500, 39.1000],[45.0400, 39.1000],
+      [45.0350, 39.1000],[45.0350, 39.0700],[45.0400, 39.0700]
+    ]
+  },
+  {
+    id: 'shi', name: 'СХИ', group: 'prikuban',
+    coords: [
+      [45.0350, 39.0400],[45.0350, 39.0700],[45.0250, 39.0700],
+      [45.0150, 39.0550],[45.0150, 39.0400],[45.0250, 39.0400]
+    ]
+  },
+  {
+    id: 'vostochno_krugl', name: 'Восточно-Кругликовский', group: 'prikuban',
+    coords: [
+      [45.0500, 39.0400],[45.0500, 39.0700],[45.0400, 39.0700],
+      [45.0350, 39.0700],[45.0350, 39.0400]
+    ]
+  },
+  {
+    id: 'nem_derevnya_sever', name: 'Немецкая деревня-север', group: 'prikuban',
+    coords: [
+      [45.0900, 38.8400],[45.0900, 38.8700],[45.0800, 38.8900],
+      [45.0700, 38.8600],[45.0700, 38.8200],[45.0800, 38.8200]
+    ]
+  },
+  {
+    id: 'rossijskaya', name: 'Российская', group: 'prikuban',
+    coords: [
+      [45.0350, 39.1000],[45.0350, 39.1300],[45.0250, 39.1300],
+      [45.0250, 39.1150],[45.0250, 39.0850],[45.0250, 39.0700],
+      [45.0350, 39.0700]
+    ]
+  },
+  {
+    id: 'zhloby', name: 'Жлобы', group: 'prikuban',
+    coords: [
+      [45.1000, 39.0400],[45.1000, 39.0700],[45.0900, 39.0700],
+      [45.0800, 39.0700],[45.0800, 39.0400],[45.0900, 39.0400]
+    ]
+  },
+  {
+    id: 'minskij_per', name: 'Минский переулок', group: 'prikuban',
+    coords: [
+      [45.1000, 39.0700],[45.1000, 39.1000],[45.0900, 39.1000],
+      [45.0800, 39.1000],[45.0800, 39.0700],[45.0900, 39.0700]
+    ]
+  },
+  {
+    id: 'karyakina', name: 'Карякина', group: 'prikuban',
+    coords: [
+      [45.0400, 39.1300],[45.0400, 39.1600],[45.0250, 39.1600],
+      [45.0250, 39.1300],[45.0350, 39.1300]
+    ]
+  },
+
+  // ====== КАРАСУНСКИЙ ОКРУГ ======
+  {
+    id: 'pashkovka', name: 'Пашковка', group: 'karasun',
+    coords: [
+      [44.9950, 39.0800],[44.9950, 39.1050],[44.9850, 39.1050],
+      [44.9750, 39.1050],[44.9700, 39.0900],[44.9700, 39.0700],
+      [44.9800, 39.0600],[44.9900, 39.0500]
+    ]
+  },
+  {
+    id: 'aeroport', name: 'Аэропорт', group: 'karasun',
+    coords: [
+      [44.9700, 39.1050],[44.9700, 39.1400],[44.9550, 39.1400],
+      [44.9550, 39.1100],[44.9600, 39.0900],[44.9700, 39.0900]
+    ]
+  },
+  {
+    id: 'rip', name: 'РИП', group: 'karasun',
+    coords: [
+      [45.0150, 39.0750],[45.0150, 39.0550],[45.0250, 39.0700],
+      [45.0250, 39.0850],[45.0150, 39.0850]
+    ]
+  },
+  {
+    id: 'uralskaya', name: 'Уральская', group: 'karasun',
+    coords: [
+      [44.9900, 39.0300],[44.9900, 39.0500],[44.9800, 39.0600],
+      [44.9700, 39.0700],[44.9700, 39.0500],[44.9700, 39.0300],
+      [44.9800, 39.0200]
+    ]
+  },
+  {
+    id: 'sormovskaya', name: 'Сормовская', group: 'karasun',
+    coords: [
+      [45.0250, 39.0700],[45.0250, 39.0850],[45.0150, 39.0850],
+      [45.0100, 39.0750],[45.0050, 39.0800],[45.0050, 39.0750],
+      [45.0150, 39.0750],[45.0150, 39.0550],[45.0250, 39.0700]
+    ]
+  },
+  {
+    id: 'tramvajnaya', name: 'Трамвайная', group: 'karasun',
+    coords: [
+      [45.0050, 39.0400],[45.0050, 39.0550],[44.9900, 39.0500],
+      [44.9900, 39.0300],[44.9950, 39.0300]
+    ]
+  },
+  {
+    id: 'stavropolskaya_verh', name: 'Ставропольская-верх', group: 'karasun',
+    coords: [
+      [45.0350, 39.0200],[45.0350, 39.0400],[45.0250, 39.0400],
+      [45.0150, 39.0400],[45.0150, 39.0200],[45.0250, 39.0200]
+    ]
+  },
+  {
+    id: 'stasova', name: 'Стасова', group: 'karasun',
+    coords: [
+      [45.0500, 39.0200],[45.0500, 39.0400],[45.0350, 39.0400],
+      [45.0350, 39.0200]
+    ]
+  },
+  {
+    id: 'starokub', name: 'Старокубанская', group: 'karasun',
+    coords: [
+      [44.9850, 39.0100],[44.9850, 39.0300],[44.9800, 39.0200],
+      [44.9700, 39.0300],[44.9700, 39.0100],[44.9750, 38.9900],
+      [44.9850, 38.9900]
+    ]
+  },
+
+  // ====== СТАНИЦЫ ======
+  {
+    id: 'elizavetinskaya', name: 'Елизаветинская', group: 'stanitsy',
+    coords: [
+      [45.0350, 38.8100],[45.0350, 38.8600],[45.0200, 38.8600],
+      [45.0100, 38.8700],[45.0050, 38.8600],[44.9950, 38.8500],
+      [44.9950, 38.8200],[45.0100, 38.8000],[45.0250, 38.8000]
+    ]
+  },
+  {
+    id: 'starokorsunskaya', name: 'Старокорсунская', group: 'stanitsy',
+    coords: [
+      [44.9700, 39.1400],[44.9700, 39.2000],[44.9400, 39.2000],
+      [44.9400, 39.1400]
+    ]
+  },
+  {
+    id: 'novotitarovskaya', name: 'Новотитаровская', group: 'stanitsy',
+    coords: [
+      [45.2200, 38.9400],[45.2200, 39.0000],[45.1800, 39.0000],
+      [45.1800, 38.9400]
+    ]
+  },
+  {
+    id: 'dinskaya', name: 'Динская', group: 'stanitsy',
+    coords: [
+      [45.2200, 39.1800],[45.2200, 39.2500],[45.1800, 39.2500],
+      [45.1800, 39.1800]
+    ]
+  },
+  {
+    id: 'plastunovskaya', name: 'Пластуновская', group: 'stanitsy',
+    coords: [
+      [45.1500, 39.2500],[45.1500, 39.3200],[45.1100, 39.3200],
+      [45.1100, 39.2500]
+    ]
+  },
+  {
+    id: 'vasyurinskaya', name: 'Васюринская', group: 'stanitsy',
+    coords: [
+      [45.1200, 39.3200],[45.1200, 39.4000],[45.0800, 39.4000],
+      [45.0800, 39.3200]
+    ]
+  },
+  {
+    id: 'staromyshast', name: 'Старомышастовская', group: 'stanitsy',
+    coords: [
+      [45.2200, 39.0500],[45.2200, 39.1200],[45.1800, 39.1200],
+      [45.1800, 39.0500]
+    ]
+  },
+  {
+    id: 'maryanskaya', name: 'Марьянская', group: 'stanitsy',
+    coords: [
+      [45.2400, 38.7500],[45.2400, 38.8200],[45.2000, 38.8200],
+      [45.2000, 38.7500]
+    ]
+  },
+  {
+    id: 'novovel', name: 'Нововеличковская', group: 'stanitsy',
+    coords: [
+      [45.2400, 38.8200],[45.2400, 38.9000],[45.2000, 38.9000],
+      [45.2000, 38.8200]
+    ]
+  },
+  {
+    id: 'novomyshast', name: 'Новомышастовская', group: 'stanitsy',
+    coords: [
+      [45.2400, 38.9000],[45.2400, 38.9400],[45.2200, 38.9400],
+      [45.2000, 38.9400],[45.2000, 38.9000]
+    ]
+  },
+
+  // ====== ХУТОРА ======
+  {
+    id: 'hutor_lenina', name: 'Хутор Ленина', group: 'hutora',
+    coords: [
+      [45.0050, 38.8900],[45.0050, 38.9100],[44.9900, 38.9300],
+      [44.9800, 38.9300],[44.9750, 38.9100],[44.9750, 38.8800],
+      [44.9850, 38.8700],[44.9950, 38.8700]
+    ]
+  },
+  {
+    id: 'hutor_vostochny', name: 'Хутор Восточный', group: 'hutora',
+    coords: [
+      [45.0600, 39.1300],[45.0600, 39.1600],[45.0400, 39.1600],
+      [45.0400, 39.1300]
+    ]
+  },
+  {
+    id: 'hutor_kopanskoj', name: 'Хутор Копанской', group: 'hutora',
+    coords: [
+      [45.0350, 38.7600],[45.0350, 38.8000],[45.0100, 38.8000],
+      [45.0100, 38.7600]
+    ]
+  },
+  {
+    id: 'hutor_novyj', name: 'Хутор Новый', group: 'hutora',
+    coords: [
+      [45.1200, 38.8700],[45.1200, 39.0000],[45.1000, 39.0000],
+      [45.1000, 38.8700]
+    ]
+  },
+  {
+    id: 'hutor_oktyabrskij', name: 'Хутор Октябрьский', group: 'hutora',
+    coords: [
+      [45.1500, 38.9200],[45.1500, 39.0000],[45.1200, 39.0000],
+      [45.1200, 38.9200]
+    ]
+  },
+  {
+    id: 'hutor_chernikov', name: 'Хутор Черников', group: 'hutora',
+    coords: [
+      [45.1500, 39.0000],[45.1500, 39.0700],[45.1200, 39.0700],
+      [45.1200, 39.0000]
+    ]
+  },
+  {
+    id: 'hutor_kalinina', name: 'Хутор Калинина', group: 'hutora',
+    coords: [
+      [45.1500, 39.0700],[45.1500, 39.1400],[45.1200, 39.1400],
+      [45.1000, 39.1400],[45.1000, 39.1000],[45.1000, 39.0700],
+      [45.1200, 39.0700]
+    ]
+  },
+
+  // ====== ПОСЁЛКИ ======
+  {
+    id: 'belozerny', name: 'Белозёрный', group: 'poselki',
+    coords: [
+      [45.1000, 39.1400],[45.1000, 39.1800],[45.0800, 39.1800],
+      [45.0800, 39.1400]
+    ]
+  },
+  {
+    id: 'berezovy', name: 'Берёзовый', group: 'poselki',
+    coords: [
+      [45.1100, 39.1800],[45.1100, 39.2200],[45.0900, 39.2200],
+      [45.0900, 39.1800]
+    ]
+  },
+  {
+    id: 'industrialny', name: 'Индустриальный', group: 'poselki',
+    coords: [
+      [45.0800, 39.1000],[45.0800, 39.1400],[45.0600, 39.1600],
+      [45.0600, 39.1300],[45.0600, 39.1000]
+    ]
+  },
+  {
+    id: 'kolosisty', name: 'Колосистый', group: 'poselki',
+    coords: [
+      [45.1500, 39.1400],[45.1500, 39.1800],[45.1200, 39.1800],
+      [45.1100, 39.1800],[45.1000, 39.1800],[45.1000, 39.1400],
+      [45.1200, 39.1400]
+    ]
+  },
+  {
+    id: 'krasnodarsky', name: 'Краснодарский', group: 'poselki',
+    coords: [
+      [45.1500, 39.1800],[45.1500, 39.2500],[45.1200, 39.2500],
+      [45.1100, 39.2200],[45.1100, 39.1800],[45.1200, 39.1800]
+    ]
+  },
+  {
+    id: 'lazurny', name: 'Лазурный', group: 'poselki',
+    coords: [
+      [45.0800, 39.1400],[45.0800, 39.1800],[45.0600, 39.1800],
+      [45.0600, 39.1600]
+    ]
+  },
+  {
+    id: 'loris', name: 'Лорис', group: 'poselki',
+    coords: [
+      [44.9700, 39.0700],[44.9700, 39.0900],[44.9600, 39.0900],
+      [44.9550, 39.0800],[44.9550, 39.0600],[44.9600, 39.0500],
+      [44.9700, 39.0500]
+    ]
+  },
+  {
+    id: 'plodorodny', name: 'Плодородный', group: 'poselki',
+    coords: [
+      [45.0600, 39.1600],[45.0600, 39.1900],[45.0400, 39.1900],
+      [45.0400, 39.1600]
+    ]
+  },
+  {
+    id: 'pobeditel', name: 'Победитель', group: 'poselki',
+    coords: [
+      [45.0400, 39.1600],[45.0400, 39.1900],[45.0250, 39.1900],
+      [45.0250, 39.1600]
+    ]
+  },
+  {
+    id: 'prigorodny', name: 'Пригородный', group: 'poselki',
+    coords: [
+      [45.0800, 39.1800],[45.0800, 39.2100],[45.0600, 39.2100],
+      [45.0600, 39.1800]
+    ]
+  },
+  {
+    id: 'progress', name: 'Прогресс', group: 'poselki',
+    coords: [
+      [44.9550, 39.1100],[44.9550, 39.1400],[44.9350, 39.1400],
+      [44.9350, 39.1100]
+    ]
+  },
+  {
+    id: 'razezd', name: 'Разъезд', group: 'poselki',
+    coords: [
+      [45.0250, 39.1600],[45.0250, 39.1900],[45.0050, 39.1900],
+      [45.0050, 39.1600]
+    ]
+  },
+  {
+    id: 'rossijskij_pos', name: 'Российский', group: 'poselki',
+    coords: [
+      [45.0050, 39.1100],[45.0050, 39.1600],[44.9850, 39.1600],
+      [44.9850, 39.1050],[44.9950, 39.1050],[45.0050, 39.1050]
+    ]
+  },
+  {
+    id: 'severny', name: 'Северный', group: 'poselki',
+    coords: [
+      [45.0800, 38.8200],[45.0800, 38.7600],[45.1000, 38.7600],
+      [45.1000, 38.8200]
+    ]
+  },
+  {
+    id: 'slavyansky', name: 'Славянский', group: 'poselki',
+    coords: [
+      [44.9750, 38.9900],[44.9750, 38.9600],[44.9600, 38.9600],
+      [44.9600, 38.9300],[44.9750, 38.9100],[44.9850, 38.9100],
+      [44.9850, 38.9400],[44.9850, 38.9900]
+    ]
+  },
+  {
+    id: 'sovhozny', name: 'Совхозный', group: 'poselki',
+    coords: [
+      [44.9400, 39.1400],[44.9400, 39.2000],[44.9200, 39.2000],
+      [44.9200, 39.1400]
+    ]
+  },
+  {
+    id: 'stepnoj', name: 'Степной', group: 'poselki',
+    coords: [
+      [45.1800, 39.0000],[45.1800, 39.0500],[45.1500, 39.0500],
+      [45.1500, 39.0000]
+    ]
+  },
+  {
+    id: 'yuzhny', name: 'Южный', group: 'poselki',
+    coords: [
+      [44.9600, 38.9600],[44.9600, 38.9300],[44.9450, 38.9300],
+      [44.9450, 38.9600],[44.9450, 38.9900],[44.9600, 38.9900]
+    ]
+  },
+
+  // ====== ПРОЧИЕ ======
+  {
+    id: 'agrogorodok', name: 'Агрогородок', group: 'other',
+    coords: [
+      [45.1800, 39.0500],[45.1800, 39.1200],[45.1500, 39.1200],
+      [45.1500, 39.0700],[45.1500, 39.0500]
+    ]
+  },
+  {
+    id: 'druzhelyubny', name: 'Дружелюбный', group: 'other',
+    coords: [
+      [45.1800, 39.1200],[45.1800, 39.1800],[45.1500, 39.1800],
+      [45.1500, 39.1200]
+    ]
+  },
+  {
+    id: 'otdelenie2', name: 'Отделение №2 СКЗНИИСиВ', group: 'other',
+    coords: [
+      [45.0800, 39.2100],[45.0800, 39.2500],[45.0600, 39.2500],
+      [45.0600, 39.2100]
+    ]
+  },
+  {
+    id: 'otdelenie3', name: 'Отделение №3 ОПХ КНИИСХ', group: 'other',
+    coords: [
+      [45.0600, 39.1900],[45.0600, 39.2300],[45.0400, 39.2300],
+      [45.0400, 39.1900]
+    ]
+  },
+  {
+    id: 'otdelenie4', name: 'Отделение №4 совхоза Солнечный', group: 'other',
+    coords: [
+      [45.0900, 39.2200],[45.0900, 39.2600],[45.0700, 39.2600],
+      [45.0700, 39.2200]
+    ]
+  }
+];
+
+// ============================================================
+// ИНИЦИАЛИЗАЦИЯ: загрузка цен из localStorage
+// ============================================================
+let zones = ZONES_DATA.map(z => ({
+  ...z,
+  price: DEFAULT_PRICE
+}));
+
+function loadPrices() {
+  // Загружаем цены из localStorage
+  const saved = localStorage.getItem('krd_delivery_prices');
+  if (saved) {
+    try {
+      const prices = JSON.parse(saved);
+      zones.forEach(z => {
+        if (prices[z.id] !== undefined) {
+          z.price = Number(prices[z.id]);
+        }
+      });
+    } catch(e) {
+      console.warn('Ошибка загрузки цен:', e);
+    }
+  }
+}
+
+function savePricesToStorage() {
+  // Сохраняем цены в localStorage
+  const prices = {};
+  zones.forEach(z => { prices[z.id] = z.price; });
+  localStorage.setItem('krd_delivery_prices', JSON.stringify(prices));
+}
+
+loadPrices();
+
+// ============================================================
+// АЛГОРИТМ RAY CASTING — проверка точки в полигоне
+// ============================================================
+function pointInPolygon(lat, lng, polygon) {
+  let inside = false;
+  const n = polygon.length;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const yi = polygon[i][0], xi = polygon[i][1];
+    const yj = polygon[j][0], xj = polygon[j][1];
+    if (((yi > lat) !== (yj > lat)) &&
+        (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+// Определение зоны по координатам
+function findZone(lat, lng) {
+  for (const zone of zones) {
+    if (pointInPolygon(lat, lng, zone.coords)) {
+      return zone;
+    }
+  }
+  return null;
+}
+
+// ============================================================
+// NOMINATIM API: геокодирование и автоподсказки
+// ============================================================
+let lastRequestTime = 0;
+const MIN_INTERVAL = 1100; // Задержка между запросами к API (1+ сек)
+let debounceTimer = null;
+let selectedLat = null;
+let selectedLng = null;
+let selectedDisplayName = '';
+
+const addressInput = document.getElementById('addressInput');
+const autocompleteList = document.getElementById('autocompleteList');
+
+// Автоподсказки при вводе адреса
+addressInput.addEventListener('input', function() {
+  selectedLat = null;
+  selectedLng = null;
+  const query = this.value.trim();
+  if (query.length < 3) {
+    autocompleteList.style.display = 'none';
+    return;
+  }
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => fetchSuggestions(query), 400);
+});
+
+// Скрытие подсказок при клике вне
+document.addEventListener('click', function(e) {
+  if (!addressInput.contains(e.target) && !autocompleteList.contains(e.target)) {
+    autocompleteList.style.display = 'none';
+  }
+});
+
+async function fetchSuggestions(query) {
+  // Соблюдаем задержку между запросами к Nominatim API
+  const now = Date.now();
+  const timeSince = now - lastRequestTime;
+  if (timeSince < MIN_INTERVAL) {
+    await new Promise(r => setTimeout(r, MIN_INTERVAL - timeSince));
+  }
+
+  const fullQuery = query + ', Краснодар';
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(fullQuery)}&format=json&limit=5&accept-language=ru&countrycodes=ru`;
+
+  try {
+    lastRequestTime = Date.now();
+    const resp = await fetch(url, {
+      headers: { 'User-Agent': 'KrasnodarDeliveryCalc/1.0' }
+    });
+    const data = await resp.json();
+    showSuggestions(data);
+  } catch(e) {
+    console.error('Ошибка запроса к Nominatim:', e);
+  }
+}
+
+function showSuggestions(results) {
+  autocompleteList.innerHTML = '';
+  if (!results || results.length === 0) {
+    autocompleteList.style.display = 'none';
+    return;
+  }
+  results.forEach(r => {
+    const item = document.createElement('div');
+    item.className = 'autocomplete-item';
+    item.textContent = r.display_name;
+    item.addEventListener('click', () => {
+      addressInput.value = r.display_name;
+      selectedLat = parseFloat(r.lat);
+      selectedLng = parseFloat(r.lon);
+      selectedDisplayName = r.display_name;
+      autocompleteList.style.display = 'none';
+    });
+    autocompleteList.appendChild(item);
+  });
+  autocompleteList.style.display = 'block';
+}
+
+// ============================================================
+// РАСЧЁТ СТОИМОСТИ ПОДЪЁМА
+// ============================================================
+function calcLiftPrice(type, floor) {
+  floor = Math.max(1, Math.min(50, floor));
+  if (type === 'lift') {
+    // Лифт: 600₽ на любой этаж
+    return 600;
+  } else if (type === 'nolift') {
+    // Без лифта: 1 эт = 600, 2 эт = 1200, 3+ = 1200 + 250 × (этаж − 2)
+    if (floor === 1) return 600;
+    if (floor === 2) return 1200;
+    return 1200 + 250 * (floor - 2);
+  } else if (type === 'owner') {
+    // С хозяином: 1 эт = 600, 2+ = 600 + 175 × (этаж − 1)
+    if (floor === 1) return 600;
+    return 600 + 175 * (floor - 1);
+  }
+  return 0;
+}
+
+// ============================================================
+// ОСНОВНОЙ РАСЧЁТ
+// ============================================================
+async function calculate() {
+  const errorMsg = document.getElementById('errorMsg');
+  const spinner = document.getElementById('spinner');
+  const resultCard = document.getElementById('resultCard');
+
+  errorMsg.classList.remove('show');
+  errorMsg.textContent = '';
+  resultCard.classList.remove('show');
+
+  const query = addressInput.value.trim();
+  if (!query) {
+    showError('Введите адрес для расчёта');
+    return;
+  }
+
+  let lat = selectedLat;
+  let lng = selectedLng;
+
+  // Если координаты не выбраны из подсказок, делаем геокодирование
+  if (lat === null || lng === null) {
+    spinner.classList.add('show');
+    try {
+      const now = Date.now();
+      const timeSince = now - lastRequestTime;
+      if (timeSince < MIN_INTERVAL) {
+        await new Promise(r => setTimeout(r, MIN_INTERVAL - timeSince));
+      }
+      const fullQuery = query + (query.toLowerCase().includes('краснод') ? '' : ', Краснодар');
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(fullQuery)}&format=json&limit=1&accept-language=ru&countrycodes=ru`;
+      lastRequestTime = Date.now();
+      const resp = await fetch(url, {
+        headers: { 'User-Agent': 'KrasnodarDeliveryCalc/1.0' }
+      });
+      const data = await resp.json();
+      spinner.classList.remove('show');
+
+      if (!data || data.length === 0) {
+        showError('Адрес не найден. Попробуйте уточнить.');
+        return;
+      }
+      lat = parseFloat(data[0].lat);
+      lng = parseFloat(data[0].lon);
+      selectedDisplayName = data[0].display_name;
+    } catch(e) {
+      spinner.classList.remove('show');
+      showError('Ошибка при обращении к геокодеру. Проверьте интернет.');
+      return;
+    }
+  }
+
+  spinner.classList.remove('show');
+
+  // Определяем зону по координатам
+  const zone = findZone(lat, lng);
+  if (!zone) {
+    showError(`Координаты (${lat.toFixed(4)}, ${lng.toFixed(4)}) не попали ни в одну зону доставки. Возможно, адрес за пределами обслуживаемой территории.`);
+    return;
+  }
+
+  // Расчёт подъёма
+  const liftType = document.getElementById('liftType').value;
+  const floor = parseInt(document.getElementById('floorInput').value) || 1;
+  const deliveryPrice = zone.price;
+  const liftPrice = calcLiftPrice(liftType, floor);
+  const total = deliveryPrice + liftPrice;
+
+  // Отображение результата
+  const shortAddr = selectedDisplayName || query;
+  document.getElementById('resAddress').textContent = shortAddr.length > 60
+    ? shortAddr.substring(0, 57) + '...'
+    : shortAddr;
+  document.getElementById('resZone').textContent = zone.name;
+  document.getElementById('resDelivery').textContent = deliveryPrice + '₽';
+  document.getElementById('resLift').textContent = liftPrice + '₽';
+  document.getElementById('resTotal').textContent = total + '₽';
+
+  resultCard.classList.add('show');
+}
+
+function showError(msg) {
+  const errorMsg = document.getElementById('errorMsg');
+  errorMsg.textContent = msg;
+  errorMsg.classList.add('show');
+}
+
+// ============================================================
+// СБРОС
+// ============================================================
+function resetAll() {
+  addressInput.value = '';
+  document.getElementById('liftType').value = 'lift';
+  document.getElementById('floorInput').value = 1;
+  document.getElementById('resultCard').classList.remove('show');
+  document.getElementById('errorMsg').classList.remove('show');
+  document.getElementById('spinner').classList.remove('show');
+  autocompleteList.style.display = 'none';
+  selectedLat = null;
+  selectedLng = null;
+  selectedDisplayName = '';
+}
+
+// ============================================================
+// МОДАЛЬНОЕ ОКНО УПРАВЛЕНИЯ ЦЕНАМИ
+// ============================================================
+function openModal() {
+  renderZoneTable();
+  document.getElementById('modalOverlay').classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('show');
+  document.body.style.overflow = '';
+}
+
+// Закрытие по клику на оверлей
+document.getElementById('modalOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+function renderZoneTable() {
+  const wrap = document.getElementById('zoneTableWrap');
+  const filter = (document.getElementById('zoneSearch').value || '').toLowerCase();
+  wrap.innerHTML = '';
+
+  GROUPS.forEach(group => {
+    const groupZones = zones.filter(z =>
+      z.group === group.key &&
+      (filter === '' || z.name.toLowerCase().includes(filter))
+    );
+
+    if (groupZones.length === 0) return;
+
+    // Заголовок группы
+    const header = document.createElement('div');
+    header.className = 'zone-group-header ' + group.css;
+    header.textContent = group.name;
+    wrap.appendChild(header);
+
+    // Зоны группы
+    groupZones.forEach(zone => {
+      const row = document.createElement('div');
+      row.className = 'zone-row';
+      row.innerHTML = `
+        <span class="zone-name">${zone.name}</span>
+        <input type="number" class="zone-price-input" data-zone-id="${zone.id}"
+               value="${zone.price}" min="0" step="50">
+      `;
+      wrap.appendChild(row);
+    });
+  });
+}
+
+function filterZones() {
+  renderZoneTable();
+}
+
+function savePrices() {
+  // Считываем все значения из инпутов
+  const inputs = document.querySelectorAll('.zone-price-input');
+  inputs.forEach(input => {
+    const id = input.dataset.zoneId;
+    const val = parseInt(input.value) || 0;
+    const zone = zones.find(z => z.id === id);
+    if (zone) zone.price = val;
+  });
+  savePricesToStorage();
+  // Анимация подтверждения
+  const btn = event.target;
+  const origText = btn.textContent;
+  btn.textContent = '✅ Сохранено!';
+  btn.style.background = '#27ae60';
+  setTimeout(() => {
+    btn.textContent = origText;
+    btn.style.background = '';
+  }, 1500);
+}
+
+function resetPrices() {
+  // Сбрасываем все зоны на 1000₽
+  zones.forEach(z => { z.price = DEFAULT_PRICE; });
+  savePricesToStorage();
+  renderZoneTable();
+  // Анимация подтверждения
+  const btn = event.target;
+  const origText = btn.textContent;
+  btn.textContent = '✅ Сброшено!';
+  setTimeout(() => { btn.textContent = origText; }, 1500);
+}
+
+// Обработка Enter при вводе адреса
+addressInput.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    autocompleteList.style.display = 'none';
+    calculate();
+  }
+});
+</script>
+</body>
+</html>
