@@ -95,12 +95,17 @@ input:focus, select:focus {
   margin-bottom: 10px;
 }
 .btn:active { transform: scale(0.97); }
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
 .btn-primary {
   background: #ff4747;
   color: #fff;
   box-shadow: 0 4px 14px rgba(255, 71, 71, 0.35);
 }
-.btn-primary:hover { box-shadow: 0 6px 20px rgba(255, 71, 71, 0.5); }
+.btn-primary:hover:not(:disabled) { box-shadow: 0 6px 20px rgba(255, 71, 71, 0.5); }
 .btn-secondary {
   background: #2c3e50;
   color: #fff;
@@ -110,7 +115,7 @@ input:focus, select:focus {
   color: #2c3e50;
   border: 2px solid #ddd;
 }
-.btn-outline:hover { border-color: #2c3e50; }
+.btn-outline:hover:not(:disabled) { border-color: #2c3e50; }
 .btn-sm {
   padding: 10px 16px;
   font-size: 0.85rem;
@@ -194,6 +199,60 @@ input:focus, select:focus {
   margin-bottom: 14px;
 }
 .modal-search:focus { outline: none; border-color: #ff4747; }
+
+/* === СТАТУС СИНХРОНИЗАЦИИ === */
+.sync-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #f8f9fa;
+  border-radius: 10px;
+  margin-bottom: 14px;
+  font-size: 0.85rem;
+}
+.sync-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sync-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #27ae60;
+}
+.sync-dot.offline { background: #e74c3c; }
+.sync-dot.syncing { background: #f39c12; animation: pulse 1s infinite; }
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.sync-date {
+  color: #999;
+  font-size: 0.8rem;
+}
+.sync-error {
+  background: #fff0f0;
+  color: #c0392b;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  font-size: 0.85rem;
+  display: none;
+}
+.sync-error.show { display: block; }
+.sync-error-btn {
+  background: #c0392b;
+  color: #fff;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 4px;
+  margin-left: 8px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
 .modal-table-wrap {
   flex: 1;
   overflow-y: auto;
@@ -247,7 +306,7 @@ input:focus, select:focus {
   flex-wrap: wrap;
   gap: 8px;
 }
-.modal-actions .btn { flex: 1; min-width: 120px; }
+.modal-actions .btn { flex: 1; min-width: 100px; }
 
 /* === ЗАГРУЗКА === */
 .spinner {
@@ -268,6 +327,18 @@ input:focus, select:focus {
   font-size: 0.9rem;
 }
 .error-msg.show { display: block; }
+
+/* === ПРЕДУПРЕЖДЕНИЕ О КЭШЕ === */
+.cache-warning {
+  background: #fff3cd;
+  color: #856404;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  margin-bottom: 10px;
+  display: none;
+}
+.cache-warning.show { display: block; }
 </style>
 </head>
 <body>
@@ -343,11 +414,33 @@ input:focus, select:focus {
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <h2>⚙️ Управление ценами доставки</h2>
+    
+    <!-- Статус синхронизации -->
+    <div class="sync-status">
+      <div class="sync-indicator">
+        <div class="sync-dot" id="syncDot"></div>
+        <span id="syncText">🟢 Синхронизировано</span>
+      </div>
+      <span class="sync-date" id="syncDate"></span>
+    </div>
+    
+    <!-- Ошибка синхронизации -->
+    <div class="sync-error" id="syncError">
+      <span id="syncErrorText"></span>
+      <button class="sync-error-btn" onclick="loadPricesFromServer()">Повторить</button>
+    </div>
+    
+    <!-- Предупреждение о кэше -->
+    <div class="cache-warning" id="cacheWarning">
+      ⚠️ Данные могут быть устаревшими. Показаны кэшированные цены.
+    </div>
+    
     <input type="text" class="modal-search" id="zoneSearch" placeholder="🔍 Поиск по названию зоны..." oninput="filterZones()">
     <div class="modal-table-wrap" id="zoneTableWrap"></div>
     <div class="modal-actions">
-      <button class="btn btn-primary btn-sm" onclick="savePrices()">💾 Сохранить все</button>
-      <button class="btn btn-outline btn-sm" onclick="resetPrices()">🔄 Сбросить на 1000₽</button>
+      <button class="btn btn-primary btn-sm" id="saveBtn" onclick="savePricesToServer()">💾 Сохранить все</button>
+      <button class="btn btn-outline btn-sm" id="refreshBtn" onclick="loadPricesFromServer()">↻ Обновить</button>
+      <button class="btn btn-outline btn-sm" onclick="resetPrices()">Сбросить на 1000₽</button>
       <button class="btn btn-secondary btn-sm" onclick="closeModal()">✖ Закрыть</button>
     </div>
   </div>
@@ -373,6 +466,10 @@ const GROUPS = [
 
 // Дефолтная цена для всех зон
 const DEFAULT_PRICE = 1000;
+
+// URL Google Apps Script для работы с ценами
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwNmdJ6Yl8Y9q-LnyR0y4Ns3EYrcuMD4lnowYj_klX8P5yR8dIAp3llUooIKDeCeR4q/exec';
+const SYNC_TIMEOUT = 10000; // Таймаут запросов к серверу — 10 секунд
 
 // Массив всех зон с полигонами
 const ZONES_DATA = [
@@ -1015,38 +1112,261 @@ const ZONES_DATA = [
 ];
 
 // ============================================================
-// ИНИЦИАЛИЗАЦИЯ: загрузка цен из localStorage
+// ИНИЦИАЛИЗАЦИЯ: загрузка цен
 // ============================================================
 let zones = ZONES_DATA.map(z => ({
   ...z,
   price: DEFAULT_PRICE
 }));
 
-function loadPrices() {
-  // Загружаем цены из localStorage
+// Состояние синхронизации
+let syncStatus = 'offline'; // 'synced', 'syncing', 'offline', 'error'
+let lastSyncTime = null;
+let usingCache = false;
+
+// Загрузка кэша из localStorage
+function loadCachedPrices() {
   const saved = localStorage.getItem('krd_delivery_prices');
+  const savedTime = localStorage.getItem('krd_delivery_prices_time');
   if (saved) {
     try {
       const prices = JSON.parse(saved);
       zones.forEach(z => {
-        if (prices[z.id] !== undefined) {
-          z.price = Number(prices[z.id]);
+        if (prices[z.name] !== undefined) {
+          z.price = Number(prices[z.name]);
         }
       });
+      if (savedTime) {
+        lastSyncTime = new Date(savedTime);
+      }
+      return true;
     } catch(e) {
-      console.warn('Ошибка загрузки цен:', e);
+      console.warn('Ошибка загрузки кэша цен:', e);
     }
+  }
+  return false;
+}
+
+// Сохранение кэша в localStorage
+function saveCachedPrices() {
+  const prices = {};
+  zones.forEach(z => { prices[z.name] = z.price; });
+  localStorage.setItem('krd_delivery_prices', JSON.stringify(prices));
+  localStorage.setItem('krd_delivery_prices_time', new Date().toISOString());
+}
+
+// Функция fetch с таймаутом
+async function fetchWithTimeout(url, options = {}, timeout = SYNC_TIMEOUT) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('TIMEOUT');
+    }
+    throw error;
   }
 }
 
-function savePricesToStorage() {
-  // Сохраняем цены в localStorage
-  const prices = {};
-  zones.forEach(z => { prices[z.id] = z.price; });
-  localStorage.setItem('krd_delivery_prices', JSON.stringify(prices));
+// Загрузка цен с сервера (GET)
+async function loadPricesFromServer() {
+  updateSyncStatus('syncing');
+  hideSyncError();
+  
+  try {
+    const resp = await fetchWithTimeout(GOOGLE_SCRIPT_URL);
+    
+    if (!resp.ok) {
+      throw new Error('HTTP_ERROR');
+    }
+    
+    const prices = await resp.json();
+    
+    // Применяем цены к зонам
+    zones.forEach(z => {
+      if (prices[z.name] !== undefined) {
+        z.price = Number(prices[z.name]);
+      }
+    });
+    
+    // Сохраняем в кэш
+    saveCachedPrices();
+    lastSyncTime = new Date();
+    usingCache = false;
+    
+    updateSyncStatus('synced');
+    renderZoneTable();
+    
+    return true;
+  } catch(e) {
+    console.error('Ошибка загрузки цен с сервера:', e);
+    
+    // Пытаемся загрузить из кэша
+    if (loadCachedPrices()) {
+      usingCache = true;
+      updateSyncStatus('offline');
+      showSyncError('Не удалось загрузить цены. Показаны кэшированные данные.');
+    } else {
+      updateSyncStatus('offline');
+      showSyncError('Не удалось загрузить цены. Используются значения по умолчанию.');
+    }
+    
+    renderZoneTable();
+    return false;
+  }
 }
 
-loadPrices();
+// Сохранение цен на сервер (POST)
+async function savePricesToServer() {
+  const saveBtn = document.getElementById('saveBtn');
+  const origText = saveBtn.textContent;
+  
+  // Сначала собираем цены из инпутов
+  const inputs = document.querySelectorAll('.zone-price-input');
+  inputs.forEach(input => {
+    const id = input.dataset.zoneId;
+    const val = parseInt(input.value) || 0;
+    const zone = zones.find(z => z.id === id);
+    if (zone) zone.price = val;
+  });
+  
+  // Формируем объект для отправки { "Название зоны": цена }
+  const prices = {};
+  zones.forEach(z => { prices[z.name] = z.price; });
+  
+  updateSyncStatus('syncing');
+  saveBtn.disabled = true;
+  saveBtn.textContent = '⏳ Сохранение...';
+  hideSyncError();
+  
+  try {
+    const resp = await fetchWithTimeout(GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(prices)
+    });
+    
+    if (!resp.ok) {
+      throw new Error('HTTP_ERROR');
+    }
+    
+    // Сохраняем в кэш
+    saveCachedPrices();
+    lastSyncTime = new Date();
+    usingCache = false;
+    
+    updateSyncStatus('synced');
+    saveBtn.textContent = '✅ Сохранено!';
+    saveBtn.style.background = '#27ae60';
+    
+    setTimeout(() => {
+      saveBtn.textContent = origText;
+      saveBtn.style.background = '';
+      saveBtn.disabled = false;
+    }, 1500);
+    
+    return true;
+  } catch(e) {
+    console.error('Ошибка сохранения цен:', e);
+    
+    updateSyncStatus('error');
+    showSyncError('❌ Не удалось сохранить. Проверьте интернет.');
+    
+    saveBtn.textContent = '❌ Ошибка';
+    saveBtn.style.background = '#e74c3c';
+    
+    setTimeout(() => {
+      saveBtn.textContent = origText;
+      saveBtn.style.background = '';
+      saveBtn.disabled = false;
+    }, 2000);
+    
+    return false;
+  }
+}
+
+// Обновление статуса синхронизации в UI
+function updateSyncStatus(status) {
+  syncStatus = status;
+  const dot = document.getElementById('syncDot');
+  const text = document.getElementById('syncText');
+  const dateEl = document.getElementById('syncDate');
+  const cacheWarning = document.getElementById('cacheWarning');
+  
+  dot.className = 'sync-dot';
+  
+  switch(status) {
+    case 'synced':
+      text.textContent = '🟢 Синхронизировано';
+      cacheWarning.classList.remove('show');
+      break;
+    case 'syncing':
+      dot.classList.add('syncing');
+      text.textContent = '⏳ Синхронизация...';
+      cacheWarning.classList.remove('show');
+      break;
+    case 'offline':
+      dot.classList.add('offline');
+      text.textContent = '🔴 Оффлайн';
+      if (usingCache) {
+        cacheWarning.classList.add('show');
+      }
+      break;
+    case 'error':
+      dot.classList.add('offline');
+      text.textContent = '🔴 Ошибка';
+      break;
+  }
+  
+  // Обновляем дату последней синхронизации
+  if (lastSyncTime) {
+    const timeStr = lastSyncTime.toLocaleString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    dateEl.textContent = `Обновлено: ${timeStr}`;
+  } else {
+    dateEl.textContent = '';
+  }
+}
+
+// Показать ошибку синхронизации
+function showSyncError(message) {
+  const errorEl = document.getElementById('syncError');
+  const errorText = document.getElementById('syncErrorText');
+  errorText.textContent = message;
+  errorEl.classList.add('show');
+}
+
+// Скрыть ошибку синхронизации
+function hideSyncError() {
+  const errorEl = document.getElementById('syncError');
+  errorEl.classList.remove('show');
+}
+
+// Инициализация при загрузке страницы
+async function initPrices() {
+  // Сначала загружаем кэш (для быстрого отображения)
+  loadCachedPrices();
+  
+  // Затем пытаемся загрузить с сервера
+  await loadPricesFromServer();
+}
+
+// Запускаем загрузку цен
+initPrices();
 
 // ============================================================
 // АЛГОРИТМ RAY CASTING — проверка точки в полигоне
@@ -1080,7 +1400,7 @@ function findZone(lat, lng) {
 // ============================================================
 const YANDEX_API_KEY = '78878ee3-2be9-4cfd-b99d-8b9e78b387f1';
 const YANDEX_GEOCODER_URL = 'https://geocode-maps.yandex.ru/1.x/';
-const REQUEST_TIMEOUT = 5000; // Таймаут запроса 5 секунд
+const GEOCODE_TIMEOUT = 5000; // Таймаут геокодера 5 секунд
 const DEBOUNCE_DELAY = 500; // Задержка перед запросом автоподсказок
 
 let debounceTimer = null;
@@ -1101,24 +1421,6 @@ function buildYandexUrl(query, results = 5) {
     lang: 'ru_RU'
   });
   return `${YANDEX_GEOCODER_URL}?${params.toString()}`;
-}
-
-// Функция fetch с таймаутом
-async function fetchWithTimeout(url, timeout = REQUEST_TIMEOUT) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-  
-  try {
-    const response = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeoutId);
-    return response;
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if (error.name === 'AbortError') {
-      throw new Error('TIMEOUT');
-    }
-    throw error;
-  }
 }
 
 // Парсинг ответа Яндекс.Геокодера — извлечение списка адресов
@@ -1170,7 +1472,7 @@ async function fetchSuggestions(query) {
   const url = buildYandexUrl(fullQuery, 5);
 
   try {
-    const resp = await fetchWithTimeout(url);
+    const resp = await fetchWithTimeout(url, {}, GEOCODE_TIMEOUT);
     
     if (!resp.ok) {
       throw new Error('HTTP_ERROR');
@@ -1261,7 +1563,7 @@ async function calculate() {
         : 'Краснодар, ' + query;
       const url = buildYandexUrl(fullQuery, 1);
       
-      const resp = await fetchWithTimeout(url);
+      const resp = await fetchWithTimeout(url, {}, GEOCODE_TIMEOUT);
       
       if (!resp.ok) {
         throw new Error('HTTP_ERROR');
@@ -1351,6 +1653,7 @@ function resetAll() {
 // ============================================================
 function openModal() {
   renderZoneTable();
+  updateSyncStatus(syncStatus); // Обновляем отображение статуса
   document.getElementById('modalOverlay').classList.add('show');
   document.body.style.overflow = 'hidden';
 }
@@ -1402,37 +1705,14 @@ function filterZones() {
   renderZoneTable();
 }
 
-function savePrices() {
-  // Считываем все значения из инпутов
-  const inputs = document.querySelectorAll('.zone-price-input');
-  inputs.forEach(input => {
-    const id = input.dataset.zoneId;
-    const val = parseInt(input.value) || 0;
-    const zone = zones.find(z => z.id === id);
-    if (zone) zone.price = val;
-  });
-  savePricesToStorage();
-  // Анимация подтверждения
-  const btn = event.target;
-  const origText = btn.textContent;
-  btn.textContent = '✅ Сохранено!';
-  btn.style.background = '#27ae60';
-  setTimeout(() => {
-    btn.textContent = origText;
-    btn.style.background = '';
-  }, 1500);
-}
-
-function resetPrices() {
+// Сброс всех цен на 1000₽ и сохранение на сервер
+async function resetPrices() {
   // Сбрасываем все зоны на 1000₽
   zones.forEach(z => { z.price = DEFAULT_PRICE; });
-  savePricesToStorage();
   renderZoneTable();
-  // Анимация подтверждения
-  const btn = event.target;
-  const origText = btn.textContent;
-  btn.textContent = '✅ Сброшено!';
-  setTimeout(() => { btn.textContent = origText; }, 1500);
+  
+  // Сохраняем на сервер
+  await savePricesToServer();
 }
 
 // Обработка Enter при вводе адреса
