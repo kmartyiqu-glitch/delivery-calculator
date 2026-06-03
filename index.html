@@ -93,6 +93,9 @@ input:focus, select:focus {
   cursor: pointer;
   transition: transform 0.15s, box-shadow 0.15s;
   margin-bottom: 10px;
+  text-decoration: none;
+  display: inline-block;
+  text-align: center;
 }
 .btn:active { transform: scale(0.97); }
 .btn:disabled {
@@ -116,6 +119,10 @@ input:focus, select:focus {
   border: 2px solid #ddd;
 }
 .btn-outline:hover:not(:disabled) { border-color: #2c3e50; }
+.btn-success {
+  background: #27ae60;
+  color: #fff;
+}
 .btn-sm {
   padding: 10px 16px;
   font-size: 0.85rem;
@@ -196,11 +203,11 @@ input:focus, select:focus {
   border: 2px solid #ddd;
   border-radius: 10px;
   font-size: 0.9rem;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 .modal-search:focus { outline: none; border-color: #ff4747; }
 
-/* === СТАТУС СИНХРОНИЗАЦИИ === */
+/* === СТАТУС ЗАГРУЗКИ === */
 .sync-status {
   display: flex;
   align-items: center;
@@ -222,8 +229,9 @@ input:focus, select:focus {
   border-radius: 50%;
   background: #27ae60;
 }
-.sync-dot.offline { background: #e74c3c; }
-.sync-dot.syncing { background: #f39c12; animation: pulse 1s infinite; }
+.sync-dot.cache { background: #f39c12; }
+.sync-dot.error { background: #e74c3c; }
+.sync-dot.loading { background: #3498db; animation: pulse 1s infinite; }
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
@@ -232,25 +240,17 @@ input:focus, select:focus {
   color: #999;
   font-size: 0.8rem;
 }
-.sync-error {
-  background: #fff0f0;
-  color: #c0392b;
-  padding: 10px;
-  border-radius: 8px;
-  margin-bottom: 10px;
+
+/* === ИНФОРМАЦИЯ === */
+.info-box {
+  background: #e8f4fd;
+  border: 1px solid #bee5eb;
+  color: #0c5460;
+  padding: 12px;
+  border-radius: 10px;
+  margin-bottom: 14px;
   font-size: 0.85rem;
-  display: none;
-}
-.sync-error.show { display: block; }
-.sync-error-btn {
-  background: #c0392b;
-  color: #fff;
-  border: none;
-  padding: 4px 10px;
-  border-radius: 4px;
-  margin-left: 8px;
-  cursor: pointer;
-  font-size: 0.8rem;
+  line-height: 1.4;
 }
 
 .modal-table-wrap {
@@ -283,30 +283,25 @@ input:focus, select:focus {
 .zone-row {
   display: flex;
   align-items: center;
-  padding: 6px 12px;
+  justify-content: space-between;
+  padding: 8px 12px;
   border-bottom: 1px solid #f5f5f5;
 }
 .zone-row:last-child { border-bottom: none; }
 .zone-name {
-  flex: 1;
   font-size: 0.85rem;
-  padding-right: 10px;
 }
-.zone-price-input {
-  width: 90px;
-  padding: 6px 8px;
-  border: 1.5px solid #ddd;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  text-align: right;
+.zone-price {
+  font-weight: 700;
+  color: #ff4747;
+  font-size: 0.9rem;
 }
-.zone-price-input:focus { outline: none; border-color: #ff4747; }
 .modal-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
-.modal-actions .btn { flex: 1; min-width: 100px; }
+.modal-actions .btn { flex: 1; min-width: 120px; }
 
 /* === ЗАГРУЗКА === */
 .spinner {
@@ -327,18 +322,6 @@ input:focus, select:focus {
   font-size: 0.9rem;
 }
 .error-msg.show { display: block; }
-
-/* === ПРЕДУПРЕЖДЕНИЕ О КЭШЕ === */
-.cache-warning {
-  background: #fff3cd;
-  color: #856404;
-  padding: 10px;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  margin-bottom: 10px;
-  display: none;
-}
-.cache-warning.show { display: block; }
 </style>
 </head>
 <body>
@@ -406,41 +389,34 @@ input:focus, select:focus {
   <!-- Кнопки снизу -->
   <div class="btn-row" style="margin-top:16px;">
     <button class="btn btn-outline" onclick="resetAll()">Сброс</button>
-    <button class="btn btn-secondary" onclick="openModal()">⚙️ Управление ценами</button>
+    <button class="btn btn-secondary" onclick="openModal()">⚙️ Просмотр цен</button>
   </div>
 </div>
 
-<!-- Модальное окно управления ценами -->
+<!-- Модальное окно просмотра цен -->
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
-    <h2>⚙️ Управление ценами доставки</h2>
+    <h2>📋 Цены доставки по районам</h2>
     
-    <!-- Статус синхронизации -->
+    <!-- Статус загрузки -->
     <div class="sync-status">
       <div class="sync-indicator">
         <div class="sync-dot" id="syncDot"></div>
-        <span id="syncText">🟢 Синхронизировано</span>
+        <span id="syncText">🟢 Загружено из таблицы</span>
       </div>
       <span class="sync-date" id="syncDate"></span>
     </div>
     
-    <!-- Ошибка синхронизации -->
-    <div class="sync-error" id="syncError">
-      <span id="syncErrorText"></span>
-      <button class="sync-error-btn" onclick="loadPricesFromServer()">Повторить</button>
-    </div>
-    
-    <!-- Предупреждение о кэше -->
-    <div class="cache-warning" id="cacheWarning">
-      ⚠️ Данные могут быть устаревшими. Показаны кэшированные цены.
+    <!-- Информация -->
+    <div class="info-box">
+      ℹ️ Цены меняются в Google Таблице. Изменения видны всем через 1-5 минут.
     </div>
     
     <input type="text" class="modal-search" id="zoneSearch" placeholder="🔍 Поиск по названию зоны..." oninput="filterZones()">
     <div class="modal-table-wrap" id="zoneTableWrap"></div>
     <div class="modal-actions">
-      <button class="btn btn-primary btn-sm" id="saveBtn" onclick="savePricesToServer()">💾 Сохранить все</button>
-      <button class="btn btn-outline btn-sm" id="refreshBtn" onclick="loadPricesFromServer()">↻ Обновить</button>
-      <button class="btn btn-outline btn-sm" onclick="resetPrices()">Сбросить на 1000₽</button>
+      <button class="btn btn-outline btn-sm" onclick="loadPricesFromCSV()">↻ Обновить цены</button>
+      <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vQRFHgva0X1ePtYXCS8t1lv1-eIftsQd5BX40IuhaLiCTrPQH39MmbBlXdOzaIAa8CVj7f63gBKBgfH/pubhtml" target="_blank" class="btn btn-success btn-sm">📊 Открыть таблицу</a>
       <button class="btn btn-secondary btn-sm" onclick="closeModal()">✖ Закрыть</button>
     </div>
   </div>
@@ -467,9 +443,9 @@ const GROUPS = [
 // Дефолтная цена для всех зон
 const DEFAULT_PRICE = 1000;
 
-// URL Google Apps Script для работы с ценами
-const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwNmdJ6Yl8Y9q-LnyR0y4Ns3EYrcuMD4lnowYj_klX8P5yR8dIAp3llUooIKDeCeR4q/exec';
-const SYNC_TIMEOUT = 10000; // Таймаут запросов к серверу — 10 секунд
+// URL Google Таблицы в формате CSV
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQRFHgva0X1ePtYXCS8t1lv1-eIftsQd5BX40IuhaLiCTrPQH39MmbBlXdOzaIAa8CVj7f63gBKBgfH/pub?gid=0&single=true&output=csv';
+const LOAD_TIMEOUT = 10000; // Таймаут загрузки — 10 секунд
 
 // Массив всех зон с полигонами
 const ZONES_DATA = [
@@ -1119,15 +1095,16 @@ let zones = ZONES_DATA.map(z => ({
   price: DEFAULT_PRICE
 }));
 
-// Состояние синхронизации
-let syncStatus = 'offline'; // 'synced', 'syncing', 'offline', 'error'
-let lastSyncTime = null;
-let usingCache = false;
+// Состояние загрузки
+let loadStatus = 'loading'; // 'loaded', 'cache', 'error'
+let lastLoadTime = null;
 
-// Загрузка кэша из localStorage
+// ============================================================
+// РАБОТА С КЭШЕМ localStorage
+// ============================================================
 function loadCachedPrices() {
-  const saved = localStorage.getItem('krd_delivery_prices');
-  const savedTime = localStorage.getItem('krd_delivery_prices_time');
+  const saved = localStorage.getItem('krd_delivery_prices_csv');
+  const savedTime = localStorage.getItem('krd_delivery_prices_csv_time');
   if (saved) {
     try {
       const prices = JSON.parse(saved);
@@ -1137,7 +1114,7 @@ function loadCachedPrices() {
         }
       });
       if (savedTime) {
-        lastSyncTime = new Date(savedTime);
+        lastLoadTime = new Date(savedTime);
       }
       return true;
     } catch(e) {
@@ -1147,76 +1124,105 @@ function loadCachedPrices() {
   return false;
 }
 
-// Сохранение кэша в localStorage
 function saveCachedPrices() {
   const prices = {};
   zones.forEach(z => { prices[z.name] = z.price; });
-  localStorage.setItem('krd_delivery_prices', JSON.stringify(prices));
-  localStorage.setItem('krd_delivery_prices_time', new Date().toISOString());
+  localStorage.setItem('krd_delivery_prices_csv', JSON.stringify(prices));
+  localStorage.setItem('krd_delivery_prices_csv_time', new Date().toISOString());
 }
 
-// Функция fetch с таймаутом
-async function fetchWithTimeout(url, options = {}, timeout = SYNC_TIMEOUT) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
+// ============================================================
+// ЗАГРУЗКА ЦЕН ИЗ CSV
+// ============================================================
+function parseCSV(csvText) {
+  // Парсим CSV: колонка A — район, колонка B — цена
+  // Первая строка — заголовок (пропускаем)
+  const lines = csvText.split('\n');
+  const prices = {};
   
-  try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-    return response;
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if (error.name === 'AbortError') {
-      throw new Error('TIMEOUT');
-    }
-    throw error;
-  }
-}
-
-// Загрузка цен с сервера (GET)
-async function loadPricesFromServer() {
-  updateSyncStatus('syncing');
-  hideSyncError();
-  
-  try {
-    const resp = await fetchWithTimeout(GOOGLE_SCRIPT_URL);
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
     
-    if (!resp.ok) {
+    // Разбиваем по запятой, учитывая что название может содержать запятую в кавычках
+    let columns;
+    if (line.includes('"')) {
+      // Сложный парсинг с кавычками
+      columns = [];
+      let current = '';
+      let inQuotes = false;
+      for (const char of line) {
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          columns.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      columns.push(current.trim());
+    } else {
+      columns = line.split(',');
+    }
+    
+    if (columns.length >= 2) {
+      const zoneName = columns[0].trim().replace(/^"|"$/g, '');
+      const price = parseInt(columns[1].trim().replace(/[^\d]/g, '')) || DEFAULT_PRICE;
+      if (zoneName) {
+        prices[zoneName] = price;
+      }
+    }
+  }
+  
+  return prices;
+}
+
+async function loadPricesFromCSV() {
+  updateLoadStatus('loading');
+  
+  try {
+    // Создаём контроллер для таймаута
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), LOAD_TIMEOUT);
+    
+    const response = await fetch(CSV_URL, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
       throw new Error('HTTP_ERROR');
     }
     
-    const prices = await resp.json();
+    const csvText = await response.text();
+    const prices = parseCSV(csvText);
     
     // Применяем цены к зонам
+    let found = 0;
     zones.forEach(z => {
       if (prices[z.name] !== undefined) {
-        z.price = Number(prices[z.name]);
+        z.price = prices[z.name];
+        found++;
       }
     });
     
+    console.log(`Загружено ${found} цен из таблицы`);
+    
     // Сохраняем в кэш
     saveCachedPrices();
-    lastSyncTime = new Date();
-    usingCache = false;
+    lastLoadTime = new Date();
     
-    updateSyncStatus('synced');
+    updateLoadStatus('loaded');
     renderZoneTable();
     
     return true;
   } catch(e) {
-    console.error('Ошибка загрузки цен с сервера:', e);
+    console.error('Ошибка загрузки CSV:', e);
     
     // Пытаемся загрузить из кэша
     if (loadCachedPrices()) {
-      usingCache = true;
-      updateSyncStatus('offline');
-      showSyncError('Не удалось загрузить цены. Показаны кэшированные данные.');
+      updateLoadStatus('cache');
     } else {
-      updateSyncStatus('offline');
-      showSyncError('Не удалось загрузить цены. Используются значения по умолчанию.');
+      updateLoadStatus('error');
     }
     
     renderZoneTable();
@@ -1224,113 +1230,40 @@ async function loadPricesFromServer() {
   }
 }
 
-// Сохранение цен на сервер (POST)
-async function savePricesToServer() {
-  const saveBtn = document.getElementById('saveBtn');
-  const origText = saveBtn.textContent;
-  
-  // Сначала собираем цены из инпутов
-  const inputs = document.querySelectorAll('.zone-price-input');
-  inputs.forEach(input => {
-    const id = input.dataset.zoneId;
-    const val = parseInt(input.value) || 0;
-    const zone = zones.find(z => z.id === id);
-    if (zone) zone.price = val;
-  });
-  
-  // Формируем объект для отправки { "Название зоны": цена }
-  const prices = {};
-  zones.forEach(z => { prices[z.name] = z.price; });
-  
-  updateSyncStatus('syncing');
-  saveBtn.disabled = true;
-  saveBtn.textContent = '⏳ Сохранение...';
-  hideSyncError();
-  
-  try {
-    const resp = await fetchWithTimeout(GOOGLE_SCRIPT_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(prices)
-    });
-    
-    if (!resp.ok) {
-      throw new Error('HTTP_ERROR');
-    }
-    
-    // Сохраняем в кэш
-    saveCachedPrices();
-    lastSyncTime = new Date();
-    usingCache = false;
-    
-    updateSyncStatus('synced');
-    saveBtn.textContent = '✅ Сохранено!';
-    saveBtn.style.background = '#27ae60';
-    
-    setTimeout(() => {
-      saveBtn.textContent = origText;
-      saveBtn.style.background = '';
-      saveBtn.disabled = false;
-    }, 1500);
-    
-    return true;
-  } catch(e) {
-    console.error('Ошибка сохранения цен:', e);
-    
-    updateSyncStatus('error');
-    showSyncError('❌ Не удалось сохранить. Проверьте интернет.');
-    
-    saveBtn.textContent = '❌ Ошибка';
-    saveBtn.style.background = '#e74c3c';
-    
-    setTimeout(() => {
-      saveBtn.textContent = origText;
-      saveBtn.style.background = '';
-      saveBtn.disabled = false;
-    }, 2000);
-    
-    return false;
-  }
-}
-
-// Обновление статуса синхронизации в UI
-function updateSyncStatus(status) {
-  syncStatus = status;
+// ============================================================
+// СТАТУС ЗАГРУЗКИ
+// ============================================================
+function updateLoadStatus(status) {
+  loadStatus = status;
   const dot = document.getElementById('syncDot');
   const text = document.getElementById('syncText');
   const dateEl = document.getElementById('syncDate');
-  const cacheWarning = document.getElementById('cacheWarning');
+  
+  if (!dot) return; // Модальное окно ещё не открыто
   
   dot.className = 'sync-dot';
   
   switch(status) {
-    case 'synced':
-      text.textContent = '🟢 Синхронизировано';
-      cacheWarning.classList.remove('show');
+    case 'loaded':
+      text.textContent = '🟢 Загружено из таблицы';
       break;
-    case 'syncing':
-      dot.classList.add('syncing');
-      text.textContent = '⏳ Синхронизация...';
-      cacheWarning.classList.remove('show');
+    case 'loading':
+      dot.classList.add('loading');
+      text.textContent = '⏳ Загрузка...';
       break;
-    case 'offline':
-      dot.classList.add('offline');
-      text.textContent = '🔴 Оффлайн';
-      if (usingCache) {
-        cacheWarning.classList.add('show');
-      }
+    case 'cache':
+      dot.classList.add('cache');
+      text.textContent = '🟡 Загружено из кэша';
       break;
     case 'error':
-      dot.classList.add('offline');
-      text.textContent = '🔴 Ошибка';
+      dot.classList.add('error');
+      text.textContent = '🔴 Ошибка загрузки';
       break;
   }
   
-  // Обновляем дату последней синхронизации
-  if (lastSyncTime) {
-    const timeStr = lastSyncTime.toLocaleString('ru-RU', {
+  // Обновляем дату последней загрузки
+  if (lastLoadTime) {
+    const timeStr = lastLoadTime.toLocaleString('ru-RU', {
       day: '2-digit',
       month: '2-digit',
       hour: '2-digit',
@@ -1342,31 +1275,8 @@ function updateSyncStatus(status) {
   }
 }
 
-// Показать ошибку синхронизации
-function showSyncError(message) {
-  const errorEl = document.getElementById('syncError');
-  const errorText = document.getElementById('syncErrorText');
-  errorText.textContent = message;
-  errorEl.classList.add('show');
-}
-
-// Скрыть ошибку синхронизации
-function hideSyncError() {
-  const errorEl = document.getElementById('syncError');
-  errorEl.classList.remove('show');
-}
-
 // Инициализация при загрузке страницы
-async function initPrices() {
-  // Сначала загружаем кэш (для быстрого отображения)
-  loadCachedPrices();
-  
-  // Затем пытаемся загрузить с сервера
-  await loadPricesFromServer();
-}
-
-// Запускаем загрузку цен
-initPrices();
+loadPricesFromCSV();
 
 // ============================================================
 // АЛГОРИТМ RAY CASTING — проверка точки в полигоне
@@ -1400,8 +1310,8 @@ function findZone(lat, lng) {
 // ============================================================
 const YANDEX_API_KEY = '78878ee3-2be9-4cfd-b99d-8b9e78b387f1';
 const YANDEX_GEOCODER_URL = 'https://geocode-maps.yandex.ru/1.x/';
-const GEOCODE_TIMEOUT = 5000; // Таймаут геокодера 5 секунд
-const DEBOUNCE_DELAY = 500; // Задержка перед запросом автоподсказок
+const GEOCODE_TIMEOUT = 5000;
+const DEBOUNCE_DELAY = 500;
 
 let debounceTimer = null;
 let selectedLat = null;
@@ -1410,6 +1320,24 @@ let selectedDisplayName = '';
 
 const addressInput = document.getElementById('addressInput');
 const autocompleteList = document.getElementById('autocompleteList');
+
+// Функция fetch с таймаутом для геокодера
+async function fetchWithTimeout(url, timeout = GEOCODE_TIMEOUT) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('TIMEOUT');
+    }
+    throw error;
+  }
+}
 
 // Функция для создания URL запроса к Яндекс.Геокодеру
 function buildYandexUrl(query, results = 5) {
@@ -1423,7 +1351,7 @@ function buildYandexUrl(query, results = 5) {
   return `${YANDEX_GEOCODER_URL}?${params.toString()}`;
 }
 
-// Парсинг ответа Яндекс.Геокодера — извлечение списка адресов
+// Парсинг ответа Яндекс.Геокодера
 function parseYandexResponse(data) {
   const results = [];
   try {
@@ -1434,7 +1362,7 @@ function parseYandexResponse(data) {
     featureMembers.forEach(item => {
       const geoObject = item.GeoObject;
       const text = geoObject.metaDataProperty.GeocoderMetaData.text;
-      // Координаты в формате "lon lat" — нужно разделить и поменять местами
+      // Координаты в формате "lon lat" — разделяем и меняем местами
       const pos = geoObject.Point.pos.split(' ');
       const lon = parseFloat(pos[0]);
       const lat = parseFloat(pos[1]);
@@ -1467,12 +1395,11 @@ document.addEventListener('click', function(e) {
 });
 
 async function fetchSuggestions(query) {
-  // Добавляем "Краснодар" для более точного поиска
   const fullQuery = 'Краснодар, ' + query;
   const url = buildYandexUrl(fullQuery, 5);
 
   try {
-    const resp = await fetchWithTimeout(url, {}, GEOCODE_TIMEOUT);
+    const resp = await fetchWithTimeout(url);
     
     if (!resp.ok) {
       throw new Error('HTTP_ERROR');
@@ -1483,7 +1410,6 @@ async function fetchSuggestions(query) {
     showSuggestions(results);
   } catch(e) {
     console.error('Ошибка запроса к Яндекс.Геокодеру:', e);
-    // Не показываем ошибку пользователю при автоподсказках — просто скрываем список
     autocompleteList.style.display = 'none';
   }
 }
@@ -1500,7 +1426,6 @@ function showSuggestions(results) {
     item.textContent = r.text;
     item.addEventListener('click', () => {
       addressInput.value = r.text;
-      // Яндекс возвращает lon, lat — для ray casting используем lat, lon
       selectedLat = r.lat;
       selectedLng = r.lon;
       selectedDisplayName = r.text;
@@ -1557,13 +1482,12 @@ async function calculate() {
   if (lat === null || lng === null) {
     spinner.classList.add('show');
     try {
-      // Добавляем "Краснодар" если не указан в запросе
       const fullQuery = query.toLowerCase().includes('краснод') 
         ? query 
         : 'Краснодар, ' + query;
       const url = buildYandexUrl(fullQuery, 1);
       
-      const resp = await fetchWithTimeout(url, {}, GEOCODE_TIMEOUT);
+      const resp = await fetchWithTimeout(url);
       
       if (!resp.ok) {
         throw new Error('HTTP_ERROR');
@@ -1578,13 +1502,11 @@ async function calculate() {
         return;
       }
       
-      // Яндекс возвращает lon, lat — для ray casting используем lat, lon
       lat = results[0].lat;
       lng = results[0].lon;
       selectedDisplayName = results[0].text;
     } catch(e) {
       spinner.classList.remove('show');
-      // Разные сообщения в зависимости от типа ошибки
       if (e.message === 'TIMEOUT') {
         showError('Сервис временно недоступен. Попробуйте позже.');
       } else if (e.name === 'TypeError' || e.message === 'Failed to fetch') {
@@ -1602,7 +1524,7 @@ async function calculate() {
   // Определяем зону по координатам
   const zone = findZone(lat, lng);
   if (!zone) {
-    showError(`Координаты (${lat.toFixed(4)}, ${lng.toFixed(4)}) не попали ни в одну зону доставки. Возможно, адрес за пределами обслуживаемой территории.`);
+    showError(`Координаты (${lat.toFixed(4)}, ${lng.toFixed(4)}) не попали ни в одну зону доставки.`);
     return;
   }
 
@@ -1649,11 +1571,11 @@ function resetAll() {
 }
 
 // ============================================================
-// МОДАЛЬНОЕ ОКНО УПРАВЛЕНИЯ ЦЕНАМИ
+// МОДАЛЬНОЕ ОКНО ПРОСМОТРА ЦЕН
 // ============================================================
 function openModal() {
   renderZoneTable();
-  updateSyncStatus(syncStatus); // Обновляем отображение статуса
+  updateLoadStatus(loadStatus);
   document.getElementById('modalOverlay').classList.add('show');
   document.body.style.overflow = 'hidden';
 }
@@ -1687,14 +1609,13 @@ function renderZoneTable() {
     header.textContent = group.name;
     wrap.appendChild(header);
 
-    // Зоны группы
+    // Зоны группы (только просмотр)
     groupZones.forEach(zone => {
       const row = document.createElement('div');
       row.className = 'zone-row';
       row.innerHTML = `
         <span class="zone-name">${zone.name}</span>
-        <input type="number" class="zone-price-input" data-zone-id="${zone.id}"
-               value="${zone.price}" min="0" step="50">
+        <span class="zone-price">${zone.price}₽</span>
       `;
       wrap.appendChild(row);
     });
@@ -1703,16 +1624,6 @@ function renderZoneTable() {
 
 function filterZones() {
   renderZoneTable();
-}
-
-// Сброс всех цен на 1000₽ и сохранение на сервер
-async function resetPrices() {
-  // Сбрасываем все зоны на 1000₽
-  zones.forEach(z => { z.price = DEFAULT_PRICE; });
-  renderZoneTable();
-  
-  // Сохраняем на сервер
-  await savePricesToServer();
 }
 
 // Обработка Enter при вводе адреса
